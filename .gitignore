@@ -1,4 +1,22 @@
+# Virtuelt Python-miljø
 .venv/
+
+# Python-mellomfiler
 __pycache__/
+*.py[cod]
+
+# Streamlit-hemmeligheter
 .streamlit/secrets.toml
+
+# Filer som ikke skal synkroniseres
 No_sync/
+
+# Mac-filer
+.DS_Store
+
+# Midlertidige Jupyter-filer
+.ipynb_checkpoints/
+
+# Genererte byggemapper
+_build/
+D2Dbook/_build/
