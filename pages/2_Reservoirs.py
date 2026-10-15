@@ -75,6 +75,9 @@ start_month, end_month = st.select_slider(
 df_selected = df[(df["area_type"] == area_type) &
                  (df["month"] >= start_month) & (df["month"] <= end_month)]
 
+# Sorterer etter område og dato, så områdene vises i rekkefølge (EL 1, EL 2, ...)
+df_selected = df_selected.sort_values(["area", "date"])
+
 # ---------- Tabell ----------
 # Én rad per områdenummer, med en minigraf (LineChartColumn) for valgt variabel og periode
 table_rows = []
