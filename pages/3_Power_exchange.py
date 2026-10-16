@@ -37,13 +37,30 @@ df = get_data()
 month_names = ["January", "February", "March", "April", "May", "June",
                "July", "August", "September", "October", "November", "December"]
 
+# Lesbare navn på forbindelsene, som vises ved radioknappene i stedet for kodene
+connection_names = {
+    "NO_1-SE_3": "NO1 – Sweden (SE3)",
+    "NO_2-DE_LU": "NO2 – Germany (NordLink)",
+    "NO_2-DK_1": "NO2 – Denmark (Skagerrak)",
+    "NO_2-GB": "NO2 – Great Britain (North Sea Link)",
+    "NO_2-NL": "NO2 – Netherlands (NorNed)",
+    "NO_3-SE_2": "NO3 – Sweden (SE2)",
+    "NO_4-FI": "NO4 – Finland",
+    "NO_4-SE_1": "NO4 – Sweden (SE1)",
+    "NO_4-SE_2": "NO4 – Sweden (SE2)",
+}
+
 # Deler siden i to kolonner med ramme rundt, slik som i lærerens eksempel
 left, right = st.columns(2, border=True)
 
 # ---------- Venstre kolonne: sektordiagram ----------
 with left:
-    # st.radio: velger forbindelse
-    connection = st.radio("Select connection:", sorted(df["connection"].unique()))
+    # st.radio: velger forbindelse. format_func viser de lesbare navnene i stedet for kodene.
+    connection = st.radio("Select connection:", sorted(df["connection"].unique()),
+                          format_func=connection_names.get)
+
+    # Forklarer de norske områdekodene under radioknappene
+    st.caption("NO1 = South-East, NO2 = South-West, NO3 = Central, NO4 = Northern Norway")
 
     # st.selectbox: velger år. index=1 gjør at 2025 (det første hele året) er valgt fra start.
     year = st.selectbox("Select year:", sorted(df["time"].dt.year.unique()), index=1)
@@ -58,7 +75,7 @@ with left:
     fig_pie = px.pie(
         values=totals.values,
         names=["Out of Norway (export)", "Into Norway (import)"],
-        title=f"Power exchange {connection} in {year} (TWh)",
+        title=f"Power exchange in {year} (TWh)<br>{connection_names[connection]}",
     )
     st.plotly_chart(fig_pie, width="stretch")
 
@@ -75,7 +92,7 @@ with right:
     df_months = df_year[df_year["time"].dt.month.isin(month_numbers)].sort_values("time")
 
     if df_months.empty:
-        st.info("No data for the selected months in this year.")
+        st.info("No data for the selected months. The data covers October 2024 to October 2026.")
     else:
         # Én linje for hver retning
         fig_line = px.line(
@@ -83,7 +100,7 @@ with right:
             x="time",
             y="flow_mw",
             color="direction",
-            title=f"Hourly power flow {connection} in {year}",
+            title=f"Hourly power flow {connection_names[connection]} in {year}",
             labels={"time": "Time (UTC)", "flow_mw": "Power flow (MW)", "direction": "Direction"},
         )
         st.plotly_chart(fig_line, width="stretch")
