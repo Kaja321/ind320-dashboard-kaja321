@@ -20,3 +20,6 @@ No_sync/
 # Genererte byggemapper
 _build/
 D2Dbook/_build/
+
+# iCloud-plassholdere
+*.icloud
