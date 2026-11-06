@@ -55,9 +55,10 @@ col3.metric("Capacity", f"{latest['kapasitet_TWh']:.2f} TWh")
 st.subheader("What you can explore")
 st.markdown(
     """
-- **Reservoirs** – tables and plots of reservoir data, where you choose area type, variable and time period
+- **Reservoirs** – tables and plots of reservoir data for the selected area type
+- **Reservoir analysis** – STL decomposition and spectrogram of the fill level
+- **Weather outliers** – outliers (SPC) and anomalies (LOF) in weather data from open-meteo
 - **Power exchange** – how much power flows in and out of Norway on each cross-border connection
-- **Test** – a test page for further development
 """
 )
 

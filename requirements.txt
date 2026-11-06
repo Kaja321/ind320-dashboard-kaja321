@@ -5,3 +5,8 @@ matplotlib
 ipykernel
 pymongo
 requests
+scipy
+scikit-learn
+statsmodels
+openmeteo-requests
+retry-requests

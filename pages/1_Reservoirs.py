@@ -5,6 +5,7 @@ import pandas as pd
 import plotly.express as px
 import requests
 import streamlit as st
+from functions import area_selector
 st.set_page_config(layout="wide")
 st.title("Reservoir Data")
 
@@ -42,13 +43,14 @@ df = load_data()
 measurements = ["fill_level", "stored_energy_twh", "capacity_twh",
                 "previous_week_fill_level", "change_in_fill_level"]
 # ---------- Valg ----------
-left, right = st.columns(2)
-# st.radio: velger områdetype. EL = strømprisområder, NO = hele landet, VASS = vassdragsområder.
-with left:
-    area_type = st.radio("Select area type:", ["EL", "NO", "VASS"], horizontal=True)
+# Felles områdevalg i sidebaren (samme valg på alle sidene). Siden viser alle områdene
+# av valgt type, så tabellen og plottet kan sammenlignes, mens værsidene bruker det valgte området.
+area = area_selector()
+area_type = area.split()[0]   # "EL 3" gir "EL"
+st.caption(f"Showing all {area_type} areas. Selected area in the sidebar: {area}")
+
 # st.selectbox: velger hvilken variabel som vises
-with right:
-    selected_col = st.selectbox("Select variable:", measurements)
+selected_col = st.selectbox("Select variable:", measurements)
 # st.select_slider: velger periode (fra og med, til og med). Standard er første måned.
 months = df["month"].unique().tolist()
 start_month, end_month = st.select_slider(
