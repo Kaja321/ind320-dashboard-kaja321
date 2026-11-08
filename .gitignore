@@ -23,3 +23,5 @@ D2Dbook/_build/
 
 # iCloud-plassholdere
 *.icloud
+
+__pycache__/
