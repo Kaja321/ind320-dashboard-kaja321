@@ -18,41 +18,41 @@ weather = download_weather(area, year)
 st.caption(f"Hourly ERA5 reanalysis from open-meteo, averaged over 20 random locations in {area} "
            f"in {year}. All times are in UTC. Change the area in the sidebar.")
 
-variables = list(LABELS.keys())
-tab_spc, tab_lof = st.tabs(["Outliers (SPC)", "Anomalies (LOF)"])
+variables = list(LABELS.keys()) 
+tab_spc, tab_lof = st.tabs(["Outliers (SPC)", "Anomalies (LOF)"]) #st.tabs lager de to fanene.
 
 # ---------- Fane 1: SPC ----------
 with tab_spc:
     col1, col2, col3 = st.columns(3)
-    # key gjør at valget i denne fanen er uavhengig av valget i LOF-fanen
+    # key gjør at variabelvalget i hver fane er uavhengig av det andre.
     column = col1.selectbox("Variable:", variables, index=variables.index("precipitation"),
                             format_func=LABELS.get, key="spc_variable")
     cutoff = col2.slider("DCT frequency cut-off", 10, 400, 100, step=10)
     n_std = col3.slider("Number of robust standard deviations", 1.0, 6.0, 3.0, step=0.5)
 
-    # Forklarer cut-off i dager: indeks k svarer til k/2 svingninger i løpet av perioden
+    # Forklarer cut-off i dager: indeks k svarer til k/2 svingninger i løpet av perioden.
     days = 2 * len(weather) / cutoff / 24
     st.caption(f"Variations slower than about {days:.0f} days are treated as seasonal and removed "
                "before the limits are calculated.")
 
     fig, summary, outliers = spc_outliers(weather, column, cutoff=cutoff, n_std=n_std)
     st.pyplot(fig)
-    plt.close(fig)   # frigjør minne, siden siden tegnes på nytt ved hvert klikk
+    plt.close(fig)   # frigjør minne, siden siden tegnes på nytt ved hvert klikk.
 
-    # Oppsummering som nøkkeltall (stor forbokstav, resten som før, så "SD (SATV)" beholdes)
+    # Oppsummering som nøkkeltall (stor forbokstav, resten som før, så "SD (SATV)" beholdes).
     for col, (label, value) in zip(st.columns(len(summary)), summary.items()):
-        col.metric(label[0].upper() + label[1:], value)
+        col.metric(label[0].upper() + label[1:], value) #metric viser nøkkeltallene
 
-    # Tabellen med uteliggerne i en utvidbar boks: lesbar tid, kolonnenavn med enhet og to desimaler
+    # Tabellen med uteliggerne i en utvidbar boks: lesbar tid, kolonnenavn med enhet og to desimaler.
     with st.expander("Show outliers"):
         st.dataframe(
             outliers,
             column_config={
                 "_index": st.column_config.DatetimeColumn("Time (UTC)", format="YYYY-MM-DD HH:mm"),
-                column: st.column_config.NumberColumn(LABELS[column], format="%.2f"),
-            },
+                column: st.column_config.NumberColumn(LABELS[column], format="%.2f"), 
+            }, 
             width="stretch",
-        )
+        ) 
 
 # ---------- Fane 2: LOF ----------
 with tab_lof:
@@ -68,11 +68,11 @@ with tab_lof:
     st.pyplot(fig)
     plt.close(fig)
 
-    # Oppsummering som nøkkeltall
+    # Oppsummering som nøkkeltall.
     for col, (label, value) in zip(st.columns(len(summary)), summary.items()):
         col.metric(label[0].upper() + label[1:], value)
 
-    # Tabellen med anomaliene, formatert på samme måte som i SPC-fanen
+    # Tabellen med anomaliene, formatert på samme måte som i SPC-fanen.
     with st.expander("Show anomalies"):
         st.dataframe(
             anomalies,

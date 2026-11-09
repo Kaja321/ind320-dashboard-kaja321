@@ -16,10 +16,10 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.seasonal import STL
 
-# Områdenumrene som har magasindata for hver områdetype
+# Områdenumrene som har magasindata for hver områdetype.
 AREAS = {"EL": [1, 2, 3, 4, 5], "NO": [0], "VASS": [1, 2, 3]}
 
-# Værvariablene som lastes ned, og lesbare navn med enheter til plottene
+# Værvariablene som lastes ned, og lesbare navn med enheter til plottene.
 VARIABLES = ["temperature_2m", "precipitation", "rain", "snowfall",
              "wind_speed_10m", "relative_humidity_2m"]
 LABELS = {"temperature_2m": "Temperature (°C)", "precipitation": "Precipitation (mm)",
@@ -28,13 +28,13 @@ LABELS = {"temperature_2m": "Temperature (°C)", "precipitation": "Precipitation
 
 
 # ---------- Felles områdevalg ----------
-
+#area_selector lager områdevalget i sidebaren
 def area_selector():
     """Viser områdevalget i sidebaren og returnerer valgt område, f.eks. "EL 3".
 
     Valget lagres i st.session_state, så det huskes når brukeren bytter side.
     """
-    # Standardvalg første gang appen åpnes: NO3 (EL 3), som i notebooken
+    # Standardvalg første gang appen åpnes: NO3 (EL 3), som i notebooken.
     if "area_type" not in st.session_state:
         st.session_state["area_type"] = "EL"
         st.session_state["area_number"] = 3
@@ -44,14 +44,14 @@ def area_selector():
     area_type = st.sidebar.radio("Area type:", types, horizontal=True,
                                  index=types.index(st.session_state["area_type"]))
 
-    # Hvis forrige nummer ikke finnes for den nye typen (f.eks. VASS 5), velges det første
+    # Hvis forrige nummer ikke finnes for den nye typen (f.eks. VASS 5), velges det første.
     numbers = AREAS[area_type]
     current = st.session_state["area_number"]
     if current not in numbers:
         current = numbers[0]
     area_number = st.sidebar.selectbox("Area number:", numbers, index=numbers.index(current))
 
-    # Lagrer valget, så de andre sidene får det samme
+    #Valget lagres i st.session_state. Det er minnet til appen, og det gjør at valget huskes når man bytter side.
     st.session_state["area_type"] = area_type
     st.session_state["area_number"] = area_number
     st.sidebar.caption("EL = price areas, NO = whole country, VASS = watercourse areas")
@@ -68,25 +68,25 @@ def load_reservoirs():
     reservoirs["dato_Id"] = pd.to_datetime(reservoirs["dato_Id"])
     reservoirs["area"] = reservoirs["omrType"] + " " + reservoirs["omrnr"].astype(str)
     return reservoirs
-
-
-@st.cache_data(show_spinner="Downloading weather data from open-meteo ...")
-def download_weather(area, year, n_points=20):
+# Funksjonen download_weather leser denne fila og plukker ut punktene for området som er valgt i sidebaren.
+@st.cache_data(show_spinner="Downloading weather data from open-meteo ...") #Med caching lastes hvert område og år bare ned én gang
+def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-meteo har en grense for hvor mye som kan lastes ned
     """Laster ned værdata (ERA5, timesverdier) for et område og ett år.
 
     Bruker de tilfeldige punktene i data/locations.csv (laget i notebooken).
     20 punkter holder nedlastingen under minuttgrensen hos open-meteo.
     Returnerer gjennomsnittet over punktene for hver time (tid i UTC).
     """
+    # I notebooken trakk jeg 1000 tilfeldige punkter i hvert område og lagret dem i fila locations.csv.
     locations = pd.read_csv("data/locations.csv")
     if area == "NO 0":
-        # Hele landet: et tilfeldig utvalg av punktene fra alle strømprisområdene
+        # Hele landet: et tilfeldig utvalg av punktene fra alle strømprisområdene.
         el_points = locations[locations["area"].str.startswith("EL")]
         points = el_points.sample(n_points, random_state=42)
     else:
         points = locations[locations["area"] == area].head(n_points)
 
-    # Open-meteo-klienten prøver på nytt hvis en forespørsel feiler
+    # Open-meteo-klienten prøver på nytt hvis en forespørsel feiler.
     openmeteo = openmeteo_requests.Client(
         session=retry(requests.Session(), retries=5, backoff_factor=0.2))
     params = {
@@ -114,11 +114,12 @@ def download_weather(area, year, n_points=20):
             df[variable] = hourly.Variables(i).ValuesAsNumpy()
         all_points.append(df)
 
-    # Gjennomsnittet over alle punktene for hver time
+    # Gjennomsnittet av alle punktene for hver time.
     return pd.concat(all_points).groupby("time").mean()
 
 
 # ---------- Uteliggere med SPC ----------
+# Definerer funksjonen spc_outliers, som er den samme som i notebooken. Den finner uteliggerne i fem steg: 
 
 def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
     """Finner uteliggere med SPC basert på SATV (høypassfiltrert serie med DCT).
