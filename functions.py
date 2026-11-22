@@ -47,7 +47,7 @@ def area_selector():
         st.session_state["area_type"] = "EL"
         st.session_state["area_number"] = 3
 
-    st.sidebar.subheader("Selected area")
+    st.sidebar.markdown("**Selected area**")
     types = list(AREAS.keys())
     area_type = st.sidebar.radio("Area type:", types, horizontal=True,
                                  index=types.index(st.session_state["area_type"]))
