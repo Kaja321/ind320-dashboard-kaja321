@@ -76,10 +76,17 @@ def load_reservoirs():
     reservoirs["dato_Id"] = pd.to_datetime(reservoirs["dato_Id"])
     reservoirs["area"] = reservoirs["omrType"] + " " + reservoirs["omrnr"].astype(str)
     return reservoirs
+
 # Funksjonen download_weather leser denne fila og plukker ut punktene for området som er valgt i sidebaren.
-@st.cache_data(show_spinner="Downloading weather data from open-meteo ...") #Med caching lastes hvert område og år bare ned én gang
-def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-meteo har en grense for hvor mye som kan lastes ned
-    """Laster ned værdata (ERA5, timesverdier) for et område og ett år.
+# Med caching lastes hvert område og hver periode bare ned én gang
+@st.cache_data(show_spinner="Downloading weather data from open-meteo ...")
+def download_weather(area, start_date, end_date, n_points=20):
+    """Laster ned værdata (ERA5, timesverdier) for et område og en periode.
+
+    area:       områdenavn, f.eks. "EL 3"
+    start_date: første dag, f.eks. "2024-01-01"
+    end_date:   siste dag, f.eks. "2024-12-31"
+    n_points:   antall tilfeldige punkter (appen bruker 20 på grunn av grensen hos open-meteo)
 
     Bruker de tilfeldige punktene i data/locations.csv (laget i notebooken).
     20 punkter holder nedlastingen under minuttgrensen hos open-meteo.
@@ -100,8 +107,8 @@ def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-me
     params = {
         "latitude": points["latitude"].tolist(),
         "longitude": points["longitude"].tolist(),
-        "start_date": f"{year}-01-01",
-        "end_date": f"{year}-12-31",
+        "start_date": start_date,
+        "end_date": end_date,
         "hourly": VARIABLES,
         "models": "era5",
     }

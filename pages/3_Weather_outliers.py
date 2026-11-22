@@ -12,7 +12,7 @@ area = area_selector()
 # st.columns(4)[0] gjør valget smalere, så det ikke fyller hele bredden.
 year = st.columns(4)[0].selectbox("Select year:", list(range(2020, 2026)), index=4)
 
-weather = download_weather(area, year)
+weather = download_weather(area, f"{year}-01-01", f"{year}-12-31")
 st.caption(f"Hourly ERA5 reanalysis from open-meteo, averaged over 20 random locations in {area} "
            f"in {year}. All times are in UTC. Change the area in the sidebar.")
 

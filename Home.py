@@ -15,6 +15,7 @@ pages = {
         st.Page("pages/home.py", title="Home", icon=":material/home:", default=True),
     ],
     "Overview": [
+        st.Page("pages/map.py", title="Map", icon=":material/map:"),
         st.Page("pages/1_Reservoirs.py", title="Reservoirs", icon=":material/water_drop:"),
         st.Page("pages/4_Power_exchange.py", title="Power exchange", icon=":material/bolt:"),
     ],
