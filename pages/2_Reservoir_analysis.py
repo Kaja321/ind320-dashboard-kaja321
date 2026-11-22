@@ -1,7 +1,6 @@
 # Side 2: Analyse av fyllingsgraden for valgt område.
 # Fane 1: STL-dekomponering. Fane 2: spektrogram.
 # Området velges i sidebaren (felles for alle sidene), parameterne velges lokalt i hver fane.
-import matplotlib.pyplot as plt
 import streamlit as st
 from functions import area_selector, load_reservoirs, stl_plot, spectrogram_plot
 
@@ -27,8 +26,7 @@ with tab_stl:
                            help="Makes trend and season less sensitive to extreme weeks")
 
     fig = stl_plot(reservoirs, area, seasonal=seasonal, trend=trend, robust=robust)
-    st.pyplot(fig)
-    plt.close(fig)   # frigjør minne, siden siden tegnes på nytt ved hvert klikk
+    st.plotly_chart(fig, width="stretch")
 
 # ---------- Fane 2: spektrogram ----------
 with tab_spec:
@@ -41,6 +39,5 @@ with tab_spec:
     overlap = int(window_length * overlap_pct / 100)
 
     fig = spectrogram_plot(reservoirs, area, window_length=window_length, overlap=overlap)
-    st.pyplot(fig)
-    plt.close(fig)
+    st.plotly_chart(fig, width="stretch")
     st.caption("Longer windows give sharper frequencies, shorter windows show changes over time better.")

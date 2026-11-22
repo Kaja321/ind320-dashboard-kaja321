@@ -31,7 +31,7 @@ def load_data():
             "endring_fyllingsgrad": "change_in_fill_level",
         }
     )
-    # NY: fyllingsgraden kommer som andel (0,76). Ganger med 100, så den vises i prosent (76).
+    # Fyllingsgraden kommer som andel (0,76). Ganger med 100, så den vises i prosent (76).
     percent_cols = ["fill_level", "previous_week_fill_level", "change_in_fill_level"]
     df[percent_cols] = df[percent_cols] * 100
     # Datoformat, slik at vi kan sortere og hente ut måneder
@@ -44,7 +44,7 @@ def load_data():
 
 df = load_data()
 
-# NY: måleverdiene brukeren kan velge mellom, med lesbare navn og enheter.
+# Måleverdiene brukeren kan velge mellom, med lesbare navn og enheter.
 # Nøkkelen er kolonnenavnet i tabellen, verdien er teksten som vises i appen.
 measurements = {
     "fill_level": "Fill level (%)",
@@ -62,13 +62,13 @@ area_type = area.split()[0]   # "EL 3" gir "EL"
 st.caption(f"Showing all {area_type} areas. Selected area in the sidebar: {area}")
 
 # st.selectbox: velger hvilken variabel som vises.
-# NY: format_func viser det lesbare navnet i stedet for kolonnenavnet.
+# Format_func viser det lesbare navnet i stedet for kolonnenavnet.
 selected_col = st.selectbox("Select variable:", list(measurements.keys()),
                             format_func=measurements.get)
 label = measurements[selected_col]
 
 # st.select_slider: velger periode (fra og med, til og med).
-# NY: standard er de siste 12 månedene, så plottet viser et helt år når siden åpnes.
+# Standard er de siste 12 månedene, så plottet viser et helt år når siden åpnes.
 months = df["month"].unique().tolist()
 start_month, end_month = st.select_slider(
     "Select period:",
@@ -84,7 +84,7 @@ df_selected = df_selected.sort_values(["area", "date"])
 
 # ---------- Tabell ----------
 # Én rad per områdenummer, med en minigraf (LineChartColumn) for valgt variabel og periode.
-# NY: løkkevariabelen heter name, så den ikke overskriver area (valget fra sidebaren).
+# Løkkevariabelen heter name, så den ikke overskriver area (valget fra sidebaren).
 table_rows = []
 for name in df_selected["area"].unique():
     values = df_selected[df_selected["area"] == name][selected_col].tolist()
@@ -104,7 +104,7 @@ st.dataframe(
 
 # ---------- Plott ----------
 # px.line lager én linje for hvert område (color="area").
-# NY: color_discrete_sequence bruker de felles fargene, så områdene er lette å skille.
+# Color_discrete_sequence bruker de felles fargene, så områdene er lette å skille.
 fig = px.line(
     df_selected,
     x="date",
