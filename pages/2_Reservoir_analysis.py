@@ -5,7 +5,6 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from functions import area_selector, load_reservoirs, stl_plot, spectrogram_plot
 
-st.set_page_config(layout="wide")
 st.title("Reservoir Analysis")
 
 area = area_selector()

@@ -6,7 +6,6 @@ import matplotlib.pyplot as plt
 import streamlit as st
 from functions import LABELS, area_selector, download_weather, spc_outliers, lof_anomalies
 
-st.set_page_config(layout="wide")
 st.title("Weather Outliers and Anomalies")
 
 area = area_selector()

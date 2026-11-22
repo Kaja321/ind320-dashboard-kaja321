@@ -5,7 +5,6 @@ import pandas as pd
 import plotly.express as px
 import pymongo
 import streamlit as st
-st.set_page_config(layout="wide")
 st.title("Power Exchange with Neighbouring Countries")
 
 # Kobler til MongoDB med adressen fra secrets.toml (samme som i lærerens eksempel).

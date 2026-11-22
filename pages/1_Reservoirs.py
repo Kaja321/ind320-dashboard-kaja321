@@ -6,7 +6,6 @@ import plotly.express as px
 import requests
 import streamlit as st
 from functions import area_selector
-st.set_page_config(layout="wide")
 st.title("Reservoir Data")
 
 # Henter dataene fra NVE sitt API og gir kolonnene engelske navn (samme som i notebooken).
