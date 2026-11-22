@@ -16,6 +16,7 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.seasonal import STL
 import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 # Områdenumrene som har magasindata for hver områdetype.
 AREAS = {"EL": [1, 2, 3, 4, 5], "NO": [0], "VASS": [1, 2, 3]}
@@ -46,7 +47,7 @@ def area_selector():
         st.session_state["area_type"] = "EL"
         st.session_state["area_number"] = 3
 
-    st.sidebar.subheader("Area (used on all pages)")
+    st.sidebar.subheader("Selected area")
     types = list(AREAS.keys())
     area_type = st.sidebar.radio("Area type:", types, horizontal=True,
                                  index=types.index(st.session_state["area_type"]))
@@ -247,6 +248,7 @@ def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighb
     return fig, summary, anomalies
 
 # ---------- STL-dekomponering ----------
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
 def stl_plot(reservoirs, area="EL 3", period=52, seasonal=13, trend=105, robust=False):
     """STL-dekomponering av fyllingsgraden for ett område.
@@ -268,29 +270,34 @@ def stl_plot(reservoirs, area="EL 3", period=52, seasonal=13, trend=105, robust=
     # STL med valgte parametere
     result = STL(series, period=period, seasonal=seasonal, trend=trend, robust=robust).fit()
 
-    # Plotter de fire delene under hverandre: data, trend, sesong og rest
-    fig = result.plot()
-    fig.set_size_inches(10, 7)
-    fig.suptitle(f"STL of fill level (%) for {area} "
-                 f"(seasonal = {seasonal}, trend = {trend}, robust = {robust})", y=1.01)
-    for ax in fig.axes:
-        ax.grid(alpha=0.3)
+    # Fire plott under hverandre med felles x-akse: data, trend, sesong og rest.
+    # shared_xaxes=True gjør at alle fire zoomes samtidig.
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04)
+    parts = [("Fill level (%)", result.observed), ("Trend", result.trend),
+             ("Season", result.seasonal), ("Residual", result.resid)]
+    for row, (name, values) in enumerate(parts, start=1):
+        # Resten vises som prikker, de andre som linjer (som i matplotlib-versjonen)
+        mode = "markers" if name == "Residual" else "lines"
+        fig.add_trace(go.Scatter(x=values.index, y=values, mode=mode, name=name,
+                                 line=dict(color=COLORS[0], width=1.5),
+                                 marker=dict(color=COLORS[0], size=3)),
+                      row=row, col=1)
+        fig.update_yaxes(title_text=name, row=row, col=1)
 
-    # Lesbare navn på aksene
-    fig.axes[0].set_title("")                     # fjerner den doble overskriften
-    fig.axes[0].set_ylabel("Fill level (%)")
-    fig.axes[1].set_ylabel("Trend")
-    fig.axes[2].set_ylabel("Season")
-    fig.axes[3].set_ylabel("Residual")
-    fig.axes[-1].set_xlabel("Date")
-
-    # Mindre prikker i restplottet, så det blir lettere å lese
-    fig.axes[3].lines[0].set_markersize(2)
-    plt.tight_layout()
+    # Nullinje i restplottet, så det er lett å se avvik over og under et vanlig år
+    fig.add_hline(y=0, line_color="grey", line_width=1, row=4, col=1)
+    fig.update_xaxes(title_text="Date", row=4, col=1)
+    fig.update_layout(
+        title=f"STL of fill level (%) for {area} "
+              f"(seasonal = {seasonal}, trend = {trend}, robust = {robust})",
+        height=700,
+        showlegend=False,   # navnene står allerede på y-aksene
+    )
     return fig
 
 
 # ---------- Spektrogram ----------
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
 def spectrogram_plot(reservoirs, area="EL 3", window_length=104, overlap=78):
     """Spektrogram av fyllingsgraden for ett område.
@@ -314,13 +321,16 @@ def spectrogram_plot(reservoirs, area="EL 3", window_length=104, overlap=78):
     # t er år fra starten av serien. Legger til startåret, så x-aksen viser årstall.
     years = series.index[0].year + t
 
-    fig, ax = plt.subplots(figsize=(10, 4))
-    mesh = ax.pcolormesh(years, f, np.abs(Zxx), shading="gouraud", cmap="viridis")
-    fig.colorbar(mesh, ax=ax, label="Magnitude")
-    ax.set_ylim(0, 6)   # viser de laveste frekvensene, der det meste skjer
-    ax.set_title(f"Spectrogram of fill level for {area} "
-                 f"(window = {window_length} weeks, overlap = {overlap} weeks)")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Frequency (cycles per year)")
-    plt.tight_layout()
+    # Heatmap: x er tid, y er frekvens og fargen er styrken.
+    # zsmooth="best" glatter fargene, som shading="gouraud" i matplotlib.
+    fig = go.Figure(go.Heatmap(x=years, y=f, z=np.abs(Zxx), colorscale="Viridis",
+                               zsmooth="best", colorbar=dict(title="Magnitude")))
+    fig.update_layout(
+        title=f"Spectrogram of fill level for {area} "
+              f"(window = {window_length} weeks, overlap = {overlap} weeks)",
+        xaxis_title="Year",
+        yaxis_title="Frequency (cycles per year)",
+        height=500,
+    )
+    fig.update_yaxes(range=[0, 6])   # viser de laveste frekvensene, der det meste skjer
     return fig
