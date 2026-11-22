@@ -15,6 +15,7 @@ from scipy.signal import stft
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.seasonal import STL
+import plotly.graph_objects as go
 
 # Områdenumrene som har magasindata for hver områdetype.
 AREAS = {"EL": [1, 2, 3, 4, 5], "NO": [0], "VASS": [1, 2, 3]}
@@ -25,6 +26,12 @@ VARIABLES = ["temperature_2m", "precipitation", "rain", "snowfall",
 LABELS = {"temperature_2m": "Temperature (°C)", "precipitation": "Precipitation (mm)",
           "rain": "Rain (mm)", "snowfall": "Snowfall (cm)",
           "wind_speed_10m": "Wind speed (km/h)", "relative_humidity_2m": "Relative humidity (%)"}
+
+# Felles farger for alle plottene i appen. Første farge er den samme blåfargen som i temaet.
+# Fargene er tydelig forskjellige, så linjer for ulike områder er lette å skille.
+COLORS = ["#1F6FB2", "#E8833A", "#2A9D8F", "#8E5EA2", "#D4A72C"]
+# Kontrastfarge for uteliggere og anomalier, så de skiller seg ut fra serien
+HIGHLIGHT = "#E8833A"
 
 
 # ---------- Felles områdevalg ----------
@@ -119,13 +126,13 @@ def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-me
 
 
 # ---------- Uteliggere med SPC ----------
-# Definerer funksjonen spc_outliers, som er den samme som i notebooken. Den finner uteliggerne i fem steg: 
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
-def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
+def spc_outliers(weather, column="temperature_2m", cutoff=100, n_std=3):
     """Finner uteliggere med SPC basert på SATV (høypassfiltrert serie med DCT).
 
     weather: tabell med tid som indeks (fra download_weather)
-    column:  variabelen som analyseres, standard er nedbør
+    column:  variabelen som analyseres, standard er temperatur
     cutoff:  DCT-indeks. Frekvenser under denne settes til null (high-pass).
     n_std:   antall robuste standardavvik til grensene
 
@@ -153,20 +160,31 @@ def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
     lower = trend + center - n_std * sigma
     is_outlier = (satv > center + n_std * sigma) | (satv < center - n_std * sigma)
 
-    # Plott: serien, grensene og uteliggerne i en kontrastfarge (SATV plottes ikke)
-    fig, ax = plt.subplots(figsize=(11, 4))
-    ax.plot(weather.index, values, color="tab:blue", linewidth=0.6, label=LABELS[column])
-    ax.plot(weather.index, upper, color="grey", linestyle="--", linewidth=0.8, label="SPC limits")
-    ax.plot(weather.index, lower, color="grey", linestyle="--", linewidth=0.8)
-    ax.scatter(weather.index[is_outlier], values[is_outlier], color="tab:red", s=10,
-               zorder=3, label="Outliers")
-    ax.set_title(f"{LABELS[column]} with SPC limits "
-                 f"(cutoff = {cutoff}, {n_std} robust SDs)")
-    ax.set_xlabel("Time (UTC)")
-    ax.set_ylabel(LABELS[column])
-    ax.legend(loc="upper right")
-    ax.grid(alpha=0.3)
-    plt.tight_layout()
+    # Plott med Plotly. Grensene tegnes først som et lyst grått bånd,
+    # så serien oppå, og uteliggerne i en kontrastfarge til slutt (SATV plottes ikke).
+    fig = go.Figure()
+    # Øvre grense (tynn grå linje)
+    fig.add_trace(go.Scatter(x=weather.index, y=upper, mode="lines", name="SPC limits",
+                             legendgroup="limits", line=dict(color="rgba(120,120,120,0.5)", width=0.8)))
+    # Nedre grense. fill="tonexty" fyller området opp til øvre grense, så det blir et bånd.
+    fig.add_trace(go.Scatter(x=weather.index, y=lower, mode="lines", name="SPC limits",
+                             legendgroup="limits", showlegend=False, fill="tonexty",
+                             fillcolor="rgba(120,120,120,0.15)",
+                             line=dict(color="rgba(120,120,120,0.5)", width=0.8)))
+    # Selve serien
+    fig.add_trace(go.Scatter(x=weather.index, y=values, mode="lines", name=LABELS[column],
+                             line=dict(color=COLORS[0], width=1)))
+    # Uteliggerne
+    fig.add_trace(go.Scatter(x=weather.index[is_outlier], y=values[is_outlier], mode="markers",
+                             name="Outliers", marker=dict(color=HIGHLIGHT, size=6)))
+    fig.update_layout(
+        title=f"{LABELS[column]} with SPC limits (cutoff = {cutoff}, {n_std} robust SDs)",
+        xaxis_title="Time (UTC)",
+        yaxis_title=LABELS[column],
+        height=500,   # litt høyere enn standard (450), så plottet blir lettere å lese
+        # Forklaringen over plottet, så den ikke dekker dataene
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
 
     # Oversikt over uteliggerne
     outliers = weather.loc[is_outlier, [column]]
@@ -179,6 +197,7 @@ def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
 
 
 # ---------- Anomalier med LOF ----------
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
 def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighbors=20):
     """Finner anomalier med Local Outlier Factor (LOF).
@@ -202,18 +221,20 @@ def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighb
     lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
     is_anomaly = lof.fit_predict(X) == -1
 
-    # Plott: serien og anomaliene i en kontrastfarge
-    fig, ax = plt.subplots(figsize=(11, 4))
-    ax.plot(weather.index, values, color="tab:blue", linewidth=0.6, label=LABELS[column])
-    ax.scatter(weather.index[is_anomaly], values[is_anomaly], color="tab:red", s=10,
-               zorder=3, label="Anomalies (LOF)")
-    ax.set_title(f"{LABELS[column]} with LOF anomalies "
-                 f"(proportion = {contamination * 100:g} %, {n_neighbors} neighbours)")
-    ax.set_xlabel("Time (UTC)")
-    ax.set_ylabel(LABELS[column])
-    ax.legend(loc="upper right")
-    ax.grid(alpha=0.3)
-    plt.tight_layout()
+    # Plott med Plotly: serien og anomaliene i en kontrastfarge
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=weather.index, y=values, mode="lines", name=LABELS[column],
+                             line=dict(color=COLORS[0], width=1)))
+    fig.add_trace(go.Scatter(x=weather.index[is_anomaly], y=values[is_anomaly], mode="markers",
+                             name="Anomalies (LOF)", marker=dict(color=HIGHLIGHT, size=6)))
+    fig.update_layout(
+        title=f"{LABELS[column]} with LOF anomalies "
+              f"(proportion = {contamination * 100:g} %, {n_neighbors} neighbours)",
+        xaxis_title="Time (UTC)",
+        yaxis_title=LABELS[column],
+        height=500,   # samme høyde som SPC-plottet
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
 
     # Oversikt over anomaliene
     anomalies = weather.loc[is_anomaly, [column]]
@@ -224,7 +245,6 @@ def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighb
         "highest anomaly": round(float(anomalies[column].max()), 2),
     }
     return fig, summary, anomalies
-
 
 # ---------- STL-dekomponering ----------
 

@@ -2,7 +2,6 @@
 # Værdataene lastes ned fra open-meteo i bakgrunnen for området som er valgt i sidebaren,
 # og caches, så samme område og år bare lastes ned én gang.
 # Fane 1: SPC (uteliggere). Fane 2: LOF (anomalier).
-import matplotlib.pyplot as plt
 import streamlit as st
 from functions import LABELS, area_selector, download_weather, spc_outliers, lof_anomalies
 
@@ -24,7 +23,7 @@ tab_spc, tab_lof = st.tabs(["Outliers (SPC)", "Anomalies (LOF)"]) #st.tabs lager
 with tab_spc:
     col1, col2, col3 = st.columns(3)
     # key gjør at variabelvalget i hver fane er uavhengig av det andre.
-    column = col1.selectbox("Variable:", variables, index=variables.index("precipitation"),
+    column = col1.selectbox("Variable:", variables, index=variables.index("temperature_2m"),
                             format_func=LABELS.get, key="spc_variable")
     cutoff = col2.slider("DCT frequency cut-off", 10, 400, 100, step=10)
     n_std = col3.slider("Number of robust standard deviations", 1.0, 6.0, 3.0, step=0.5)
@@ -35,8 +34,8 @@ with tab_spc:
                "before the limits are calculated.")
 
     fig, summary, outliers = spc_outliers(weather, column, cutoff=cutoff, n_std=n_std)
-    st.pyplot(fig)
-    plt.close(fig)   # frigjør minne, siden siden tegnes på nytt ved hvert klikk.
+    # Plotly-figuren vises interaktivt: man kan zoome, og verdiene vises når man holder musa over
+    st.plotly_chart(fig, width="stretch")
 
     # Oppsummering som nøkkeltall (stor forbokstav, resten som før, så "SD (SATV)" beholdes).
     for col, (label, value) in zip(st.columns(len(summary)), summary.items()):
@@ -64,8 +63,7 @@ with tab_lof:
     fig, summary, anomalies = lof_anomalies(weather, column,
                                             contamination=contamination_pct / 100,
                                             n_neighbors=n_neighbors)
-    st.pyplot(fig)
-    plt.close(fig)
+    st.plotly_chart(fig, width="stretch")
 
     # Oppsummering som nøkkeltall.
     for col, (label, value) in zip(st.columns(len(summary)), summary.items()):
