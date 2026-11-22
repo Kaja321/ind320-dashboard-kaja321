@@ -92,6 +92,7 @@ def download_weather(area, start_date, end_date, n_points=20):
     20 punkter holder nedlastingen under minuttgrensen hos open-meteo.
     Returnerer gjennomsnittet over punktene for hver time (tid i UTC).
     """
+
     # I notebooken trakk jeg 1000 tilfeldige punkter i hvert område og lagret dem i fila locations.csv.
     locations = pd.read_csv("data/locations.csv")
     if area == "NO 0":
@@ -132,6 +133,37 @@ def download_weather(area, start_date, end_date, n_points=20):
     # Gjennomsnittet av alle punktene for hver time.
     return pd.concat(all_points).groupby("time").mean()
 
+# ---------- Ukentlige værdata ----------
+# Nedbør, regn og snø summeres over uka. De andre variablene blir gjennomsnitt.
+SUM_VARIABLES = ["precipitation", "rain", "snowfall"]
+
+
+def weekly_weather(area, start_date, end_date, n_points=5):
+    """Værdata per uke (mandag til søndag), så de passer med magasinstatistikken.
+
+    area:       områdenavn, f.eks. "EL 3"
+    start_date: første dag, f.eks. "2021-01-01"
+    end_date:   siste dag, f.eks. "2024-12-31"
+    n_points:   antall punkter. 5 holder lange perioder under grensen hos open-meteo.
+
+    Returnerer en tabell med én rad per uke, merket med søndagen uka slutter på
+    (samme som datoene i magasinstatistikken).
+    """
+    hourly = download_weather(area, start_date, end_date, n_points=n_points)
+
+    # Fra UTC til norsk tid, så dagene og ukene starter ved norsk midnatt (se tidssone-delen i notebooken)
+    hourly = hourly.tz_convert("Europe/Oslo")
+
+    # Hvilken utregning hver variabel får: sum eller gjennomsnitt
+    how = {column: ("sum" if column in SUM_VARIABLES else "mean") for column in hourly.columns}
+
+    # Først per dag, så per uke. "W-SUN" betyr uker som slutter på søndag.
+    daily = hourly.resample("D").agg(how)
+    weekly = daily.resample("W-SUN").agg(how)
+
+    # Fjerner tidssonen, så datoene kan kobles med datoene i magasinstatistikken
+    weekly.index = weekly.index.tz_localize(None)
+    return weekly
 
 # ---------- Uteliggere med SPC ----------
 # Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.

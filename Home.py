@@ -23,6 +23,9 @@ pages = {
         st.Page("pages/2_Reservoir_analysis.py", title="Reservoir analysis", icon=":material/insights:"),
         st.Page("pages/3_Weather_outliers.py", title="Weather outliers", icon=":material/thermostat:"),
     ],
+    "Prediction": [
+        st.Page("pages/correlation.py", title="Correlation", icon=":material/compare_arrows:"),
+    ],
 }
 
 # Lager menyen i sidebaren og kjører siden som er valgt
