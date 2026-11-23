@@ -42,7 +42,7 @@ col1, col2, col3 = st.columns(3)   # deler siden i tre kolonner ved siden av hve
 col1.metric(
     "Fill level",
     f"{latest['fyllingsgrad']:.0%}",
-    f"{latest['endring_fyllingsgrad']:+.1%} from last week",
+    f"{latest['endring_fyllingsgrad'] * 100:+.1f} percentage points from last week",
 )
 col2.metric("Stored energy", f"{latest['fylling_TWh']:.2f} TWh")
 col3.metric("Capacity", f"{latest['kapasitet_TWh']:.2f} TWh")
