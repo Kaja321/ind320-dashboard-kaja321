@@ -6,7 +6,6 @@ import requests
 import streamlit as st
 
 
-
 # Henter magasinstatistikken direkte fra NVE sitt API.
 # @st.cache_data gjør at dataene bare hentes én gang. ttl=86400 betyr at de
 # hentes på nytt etter ett døgn, siden NVE publiserer nye tall hver uke.
@@ -29,10 +28,10 @@ latest = df_no1.iloc[-1]
 # ---------- Overskrift og introduksjon ----------
 st.title("Norwegian Hydropower Reservoirs")
 st.write(
-    "Most of Norway's electricity comes from hydropower. Water is stored in "
-    "reservoirs and used to produce electricity when it is needed. This dashboard "
-    "explores how full the reservoirs have been every week since 1995, and how "
-    "much power Norway exchanges with neighbouring countries."
+    "Most of Norway's electricity comes from hydropower. Water is stored in reservoirs and used "
+    "to produce electricity when it is needed. This dashboard explores how full the reservoirs "
+    "have been every week since 1995, how the weather affects them, how much power Norway "
+    "exchanges with neighbouring countries, and what the fill level may be in the coming months."
 )
 
 # ---------- Nøkkeltall ----------
@@ -49,20 +48,31 @@ col2.metric("Stored energy", f"{latest['fylling_TWh']:.2f} TWh")
 col3.metric("Capacity", f"{latest['kapasitet_TWh']:.2f} TWh")
 
 # ---------- Oversikt over sidene ----------
+# Samme grupper som i menyen (Home.py), så det er lett å finne fram
 st.subheader("What you can explore")
 st.markdown(
     """
-- **Reservoirs** – tables and plots of reservoir data for the selected area type
+**Overview**
+- **Map** – price and water areas coloured by fill level or weather for a chosen week. Click an area to select it
+- **Reservoirs** – table and plot of reservoir data for the selected area type
+- **Power exchange** – power flow in and out of Norway on each cross-border connection
+
+**Analysis**
 - **Reservoir analysis** – STL decomposition and spectrogram of the fill level
-- **Weather outliers** – outliers (SPC) and anomalies (LOF) in weather data from open-meteo
-- **Power exchange** – how much power flows in and out of Norway on each cross-border connection
+- **Weather outliers** – outliers (SPC) and anomalies (LOF) in weather data
+
+**Prediction**
+- **Correlation** – sliding window correlation between weather and reservoirs, with lag
+- **Forecast** – forecast of the fill level with SNARIMAX (River), with weather and exchange rates as optional inputs
 """
 )
+st.caption("The area selected in the sidebar (or by clicking in the map) is used on all pages "
+           "except Home and Power exchange.")
 
 # ---------- Om dataene ----------
 st.subheader("About the data")
 st.write(
     "The reservoir data is fetched directly from NVE's API (Magasinstatistikk). "
+    "Weather data (ERA5) comes from open-meteo, and exchange rates for EUR and USD from Norges Bank. "
     "The cross-border power flows come from ENTSO-E and are stored in a MongoDB database."
 )
-
