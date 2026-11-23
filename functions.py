@@ -15,6 +15,9 @@ from scipy.signal import stft
 from sklearn.neighbors import LocalOutlierFactor
 from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.seasonal import STL
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from river import time_series, preprocessing, linear_model, optim
 
 # Områdenumrene som har magasindata for hver områdetype.
 AREAS = {"EL": [1, 2, 3, 4, 5], "NO": [0], "VASS": [1, 2, 3]}
@@ -25,6 +28,12 @@ VARIABLES = ["temperature_2m", "precipitation", "rain", "snowfall",
 LABELS = {"temperature_2m": "Temperature (°C)", "precipitation": "Precipitation (mm)",
           "rain": "Rain (mm)", "snowfall": "Snowfall (cm)",
           "wind_speed_10m": "Wind speed (km/h)", "relative_humidity_2m": "Relative humidity (%)"}
+
+# Felles farger for alle plottene i appen. Første farge er den samme blåfargen som i temaet.
+# Fargene er tydelig forskjellige, så linjer for ulike områder er lette å skille.
+COLORS = ["#1F6FB2", "#E8833A", "#2A9D8F", "#8E5EA2", "#D4A72C"]
+# Kontrastfarge for uteliggere og anomalier, så de skiller seg ut fra serien
+HIGHLIGHT = "#E8833A"
 
 
 # ---------- Felles områdevalg ----------
@@ -39,7 +48,7 @@ def area_selector():
         st.session_state["area_type"] = "EL"
         st.session_state["area_number"] = 3
 
-    st.sidebar.subheader("Area (used on all pages)")
+    st.sidebar.markdown("**Selected area**")
     types = list(AREAS.keys())
     area_type = st.sidebar.radio("Area type:", types, horizontal=True,
                                  index=types.index(st.session_state["area_type"]))
@@ -68,15 +77,23 @@ def load_reservoirs():
     reservoirs["dato_Id"] = pd.to_datetime(reservoirs["dato_Id"])
     reservoirs["area"] = reservoirs["omrType"] + " " + reservoirs["omrnr"].astype(str)
     return reservoirs
+
 # Funksjonen download_weather leser denne fila og plukker ut punktene for området som er valgt i sidebaren.
-@st.cache_data(show_spinner="Downloading weather data from open-meteo ...") #Med caching lastes hvert område og år bare ned én gang
-def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-meteo har en grense for hvor mye som kan lastes ned
-    """Laster ned værdata (ERA5, timesverdier) for et område og ett år.
+# Med caching lastes hvert område og hver periode bare ned én gang
+@st.cache_data(show_spinner="Downloading weather data from open-meteo ...")
+def download_weather(area, start_date, end_date, n_points=20):
+    """Laster ned værdata (ERA5, timesverdier) for et område og en periode.
+
+    area:       områdenavn, f.eks. "EL 3"
+    start_date: første dag, f.eks. "2024-01-01"
+    end_date:   siste dag, f.eks. "2024-12-31"
+    n_points:   antall tilfeldige punkter (appen bruker 20 på grunn av grensen hos open-meteo)
 
     Bruker de tilfeldige punktene i data/locations.csv (laget i notebooken).
     20 punkter holder nedlastingen under minuttgrensen hos open-meteo.
     Returnerer gjennomsnittet over punktene for hver time (tid i UTC).
     """
+
     # I notebooken trakk jeg 1000 tilfeldige punkter i hvert område og lagret dem i fila locations.csv.
     locations = pd.read_csv("data/locations.csv")
     if area == "NO 0":
@@ -92,8 +109,8 @@ def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-me
     params = {
         "latitude": points["latitude"].tolist(),
         "longitude": points["longitude"].tolist(),
-        "start_date": f"{year}-01-01",
-        "end_date": f"{year}-12-31",
+        "start_date": start_date,
+        "end_date": end_date,
         "hourly": VARIABLES,
         "models": "era5",
     }
@@ -117,15 +134,47 @@ def download_weather(area, year, n_points=20): #Appen bruker 20 punkter, open-me
     # Gjennomsnittet av alle punktene for hver time.
     return pd.concat(all_points).groupby("time").mean()
 
+# ---------- Ukentlige værdata ----------
+# Nedbør, regn og snø summeres over uka. De andre variablene blir gjennomsnitt.
+SUM_VARIABLES = ["precipitation", "rain", "snowfall"]
+
+
+def weekly_weather(area, start_date, end_date, n_points=5):
+    """Værdata per uke (mandag til søndag), så de passer med magasinstatistikken.
+
+    area:       områdenavn, f.eks. "EL 3"
+    start_date: første dag, f.eks. "2021-01-01"
+    end_date:   siste dag, f.eks. "2024-12-31"
+    n_points:   antall punkter. 5 holder lange perioder under grensen hos open-meteo.
+
+    Returnerer en tabell med én rad per uke, merket med søndagen uka slutter på
+    (samme som datoene i magasinstatistikken).
+    """
+    hourly = download_weather(area, start_date, end_date, n_points=n_points)
+
+    # Fra UTC til norsk tid, så dagene og ukene starter ved norsk midnatt (se tidssone-delen i notebooken)
+    hourly = hourly.tz_convert("Europe/Oslo")
+
+    # Hvilken utregning hver variabel får: sum eller gjennomsnitt
+    how = {column: ("sum" if column in SUM_VARIABLES else "mean") for column in hourly.columns}
+
+    # Først per dag, så per uke. "W-SUN" betyr uker som slutter på søndag.
+    daily = hourly.resample("D").agg(how)
+    weekly = daily.resample("W-SUN").agg(how)
+
+    # Fjerner tidssonen, så datoene kan kobles med datoene i magasinstatistikken
+    weekly.index = weekly.index.tz_localize(None)
+    # Første og siste uke er ofte ikke hele (f.eks. bare noen dager), så de fjernes
+    return weekly.iloc[1:-1]
 
 # ---------- Uteliggere med SPC ----------
-# Definerer funksjonen spc_outliers, som er den samme som i notebooken. Den finner uteliggerne i fem steg: 
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
-def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
+def spc_outliers(weather, column="temperature_2m", cutoff=100, n_std=3):
     """Finner uteliggere med SPC basert på SATV (høypassfiltrert serie med DCT).
 
     weather: tabell med tid som indeks (fra download_weather)
-    column:  variabelen som analyseres, standard er nedbør
+    column:  variabelen som analyseres, standard er temperatur
     cutoff:  DCT-indeks. Frekvenser under denne settes til null (high-pass).
     n_std:   antall robuste standardavvik til grensene
 
@@ -153,20 +202,31 @@ def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
     lower = trend + center - n_std * sigma
     is_outlier = (satv > center + n_std * sigma) | (satv < center - n_std * sigma)
 
-    # Plott: serien, grensene og uteliggerne i en kontrastfarge (SATV plottes ikke)
-    fig, ax = plt.subplots(figsize=(11, 4))
-    ax.plot(weather.index, values, color="tab:blue", linewidth=0.6, label=LABELS[column])
-    ax.plot(weather.index, upper, color="grey", linestyle="--", linewidth=0.8, label="SPC limits")
-    ax.plot(weather.index, lower, color="grey", linestyle="--", linewidth=0.8)
-    ax.scatter(weather.index[is_outlier], values[is_outlier], color="tab:red", s=10,
-               zorder=3, label="Outliers")
-    ax.set_title(f"{LABELS[column]} with SPC limits "
-                 f"(cutoff = {cutoff}, {n_std} robust SDs)")
-    ax.set_xlabel("Time (UTC)")
-    ax.set_ylabel(LABELS[column])
-    ax.legend(loc="upper right")
-    ax.grid(alpha=0.3)
-    plt.tight_layout()
+    # Plott med Plotly. Grensene tegnes først som et lyst grått bånd,
+    # så serien oppå, og uteliggerne i en kontrastfarge til slutt (SATV plottes ikke).
+    fig = go.Figure()
+    # Øvre grense (tynn grå linje)
+    fig.add_trace(go.Scatter(x=weather.index, y=upper, mode="lines", name="SPC limits",
+                             legendgroup="limits", line=dict(color="rgba(120,120,120,0.5)", width=0.8)))
+    # Nedre grense. fill="tonexty" fyller området opp til øvre grense, så det blir et bånd.
+    fig.add_trace(go.Scatter(x=weather.index, y=lower, mode="lines", name="SPC limits",
+                             legendgroup="limits", showlegend=False, fill="tonexty",
+                             fillcolor="rgba(120,120,120,0.15)",
+                             line=dict(color="rgba(120,120,120,0.5)", width=0.8)))
+    # Selve serien
+    fig.add_trace(go.Scatter(x=weather.index, y=values, mode="lines", name=LABELS[column],
+                             line=dict(color=COLORS[0], width=1)))
+    # Uteliggerne
+    fig.add_trace(go.Scatter(x=weather.index[is_outlier], y=values[is_outlier], mode="markers",
+                             name="Outliers", marker=dict(color=HIGHLIGHT, size=6)))
+    fig.update_layout(
+        title=f"{LABELS[column]} with SPC limits (cutoff = {cutoff}, {n_std} robust SDs)",
+        xaxis_title="Time (UTC)",
+        yaxis_title=LABELS[column],
+        height=500,   # litt høyere enn standard (450), så plottet blir lettere å lese
+        # Forklaringen over plottet, så den ikke dekker dataene
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
 
     # Oversikt over uteliggerne
     outliers = weather.loc[is_outlier, [column]]
@@ -179,6 +239,7 @@ def spc_outliers(weather, column="precipitation", cutoff=100, n_std=3):
 
 
 # ---------- Anomalier med LOF ----------
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
 def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighbors=20):
     """Finner anomalier med Local Outlier Factor (LOF).
@@ -202,18 +263,20 @@ def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighb
     lof = LocalOutlierFactor(n_neighbors=n_neighbors, contamination=contamination)
     is_anomaly = lof.fit_predict(X) == -1
 
-    # Plott: serien og anomaliene i en kontrastfarge
-    fig, ax = plt.subplots(figsize=(11, 4))
-    ax.plot(weather.index, values, color="tab:blue", linewidth=0.6, label=LABELS[column])
-    ax.scatter(weather.index[is_anomaly], values[is_anomaly], color="tab:red", s=10,
-               zorder=3, label="Anomalies (LOF)")
-    ax.set_title(f"{LABELS[column]} with LOF anomalies "
-                 f"(proportion = {contamination * 100:g} %, {n_neighbors} neighbours)")
-    ax.set_xlabel("Time (UTC)")
-    ax.set_ylabel(LABELS[column])
-    ax.legend(loc="upper right")
-    ax.grid(alpha=0.3)
-    plt.tight_layout()
+    # Plott med Plotly: serien og anomaliene i en kontrastfarge
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=weather.index, y=values, mode="lines", name=LABELS[column],
+                             line=dict(color=COLORS[0], width=1)))
+    fig.add_trace(go.Scatter(x=weather.index[is_anomaly], y=values[is_anomaly], mode="markers",
+                             name="Anomalies (LOF)", marker=dict(color=HIGHLIGHT, size=6)))
+    fig.update_layout(
+        title=f"{LABELS[column]} with LOF anomalies "
+              f"(proportion = {contamination * 100:g} %, {n_neighbors} neighbours)",
+        xaxis_title="Time (UTC)",
+        yaxis_title=LABELS[column],
+        height=500,   # samme høyde som SPC-plottet
+        legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="right", x=1),
+    )
 
     # Oversikt over anomaliene
     anomalies = weather.loc[is_anomaly, [column]]
@@ -225,8 +288,8 @@ def lof_anomalies(weather, column="temperature_2m", contamination=0.01, n_neighb
     }
     return fig, summary, anomalies
 
-
 # ---------- STL-dekomponering ----------
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
 def stl_plot(reservoirs, area="EL 3", period=52, seasonal=13, trend=105, robust=False):
     """STL-dekomponering av fyllingsgraden for ett område.
@@ -248,29 +311,34 @@ def stl_plot(reservoirs, area="EL 3", period=52, seasonal=13, trend=105, robust=
     # STL med valgte parametere
     result = STL(series, period=period, seasonal=seasonal, trend=trend, robust=robust).fit()
 
-    # Plotter de fire delene under hverandre: data, trend, sesong og rest
-    fig = result.plot()
-    fig.set_size_inches(10, 7)
-    fig.suptitle(f"STL of fill level (%) for {area} "
-                 f"(seasonal = {seasonal}, trend = {trend}, robust = {robust})", y=1.01)
-    for ax in fig.axes:
-        ax.grid(alpha=0.3)
+    # Fire plott under hverandre med felles x-akse: data, trend, sesong og rest.
+    # shared_xaxes=True gjør at alle fire zoomes samtidig.
+    fig = make_subplots(rows=4, cols=1, shared_xaxes=True, vertical_spacing=0.04)
+    parts = [("Fill level (%)", result.observed), ("Trend", result.trend),
+             ("Season", result.seasonal), ("Residual", result.resid)]
+    for row, (name, values) in enumerate(parts, start=1):
+        # Resten vises som prikker, de andre som linjer (som i matplotlib-versjonen)
+        mode = "markers" if name == "Residual" else "lines"
+        fig.add_trace(go.Scatter(x=values.index, y=values, mode=mode, name=name,
+                                 line=dict(color=COLORS[0], width=1.5),
+                                 marker=dict(color=COLORS[0], size=3)),
+                      row=row, col=1)
+        fig.update_yaxes(title_text=name, row=row, col=1)
 
-    # Lesbare navn på aksene
-    fig.axes[0].set_title("")                     # fjerner den doble overskriften
-    fig.axes[0].set_ylabel("Fill level (%)")
-    fig.axes[1].set_ylabel("Trend")
-    fig.axes[2].set_ylabel("Season")
-    fig.axes[3].set_ylabel("Residual")
-    fig.axes[-1].set_xlabel("Date")
-
-    # Mindre prikker i restplottet, så det blir lettere å lese
-    fig.axes[3].lines[0].set_markersize(2)
-    plt.tight_layout()
+    # Nullinje i restplottet, så det er lett å se avvik over og under et vanlig år
+    fig.add_hline(y=0, line_color="grey", line_width=1, row=4, col=1)
+    fig.update_xaxes(title_text="Date", row=4, col=1)
+    fig.update_layout(
+        title=f"STL of fill level (%) for {area} "
+              f"(seasonal = {seasonal}, trend = {trend}, robust = {robust})",
+        height=700,
+        showlegend=False,   # navnene står allerede på y-aksene
+    )
     return fig
 
 
 # ---------- Spektrogram ----------
+# Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
 
 def spectrogram_plot(reservoirs, area="EL 3", window_length=104, overlap=78):
     """Spektrogram av fyllingsgraden for ett område.
@@ -294,13 +362,68 @@ def spectrogram_plot(reservoirs, area="EL 3", window_length=104, overlap=78):
     # t er år fra starten av serien. Legger til startåret, så x-aksen viser årstall.
     years = series.index[0].year + t
 
-    fig, ax = plt.subplots(figsize=(10, 4))
-    mesh = ax.pcolormesh(years, f, np.abs(Zxx), shading="gouraud", cmap="viridis")
-    fig.colorbar(mesh, ax=ax, label="Magnitude")
-    ax.set_ylim(0, 6)   # viser de laveste frekvensene, der det meste skjer
-    ax.set_title(f"Spectrogram of fill level for {area} "
-                 f"(window = {window_length} weeks, overlap = {overlap} weeks)")
-    ax.set_xlabel("Year")
-    ax.set_ylabel("Frequency (cycles per year)")
-    plt.tight_layout()
+    # Heatmap: x er tid, y er frekvens og fargen er styrken.
+    # zsmooth="best" glatter fargene, som shading="gouraud" i matplotlib.
+    fig = go.Figure(go.Heatmap(x=years, y=f, z=np.abs(Zxx), colorscale="Viridis",
+                               zsmooth="best", colorbar=dict(title="Magnitude")))
+    fig.update_layout(
+        title=f"Spectrogram of fill level for {area} "
+              f"(window = {window_length} weeks, overlap = {overlap} weeks)",
+        xaxis_title="Year",
+        yaxis_title="Frequency (cycles per year)",
+        height=500,
+    )
+    fig.update_yaxes(range=[0, 6])   # viser de laveste frekvensene, der det meste skjer
     return fig
+
+
+# ---------- Valutakurser fra Norges Bank ----------
+# Samme funksjon som i notebooken for del 4, men med caching
+
+@st.cache_data(ttl=86400, show_spinner="Downloading exchange rates from Norges Bank ...")
+def download_exchange_rates(start_date, end_date, currencies=("EUR", "USD")):
+    """Laster ned daglige valutakurser mot norske kroner (NOK per enhet) fra Norges Bank."""
+    codes = "+".join(currencies)
+    url = (f"https://data.norges-bank.no/api/data/EXR/B.{codes}.NOK.SP"
+           f"?format=csv&startPeriod={start_date}&endPeriod={end_date}&locale=en")
+    df = pd.read_csv(url, sep=";")
+    # Én kolonne per valuta, med datoen som indeks
+    rates = df.pivot(index="TIME_PERIOD", columns="BASE_CUR", values="OBS_VALUE")
+    rates.index = pd.to_datetime(rates.index)
+    rates.index.name = "date"
+    rates.columns.name = None
+    return rates
+
+
+# ---------- Prognose med River ----------
+# Samme modell som i notebooken for del 4. Standardverdiene er den beste innstillingen fra testene der.
+
+def forecast_fill_level(train, future, exog=None, p=2, d=1, q=0, sp=1, sd=0, sq=0, learning_rate=0.001):
+    """Spår fyllingsgraden med SNARIMAX fra River.
+
+    train:         ukentlig tabell med "fill_level" og de eksogene variablene i treningsperioden
+    future:        ukentlig tabell med de eksogene variablene for ukene som skal spås
+    exog:          liste med eksogene variabler, f.eks. ["precipitation", "snowfall"]
+    p, d, q:       AR-orden, differensiering og MA-orden
+    sp, sd, sq:    det samme for sesongdelen (sesongen er 52 uker)
+    learning_rate: læringsraten til den lineære regresjonen inne i modellen
+
+    Returnerer prognosen som en serie med ukene som indeks.
+    """
+    exog = exog or []
+    model = time_series.SNARIMAX(
+        p=p, d=d, q=q, m=52, sp=sp, sd=sd, sq=sq,
+        regressor=(preprocessing.StandardScaler() |
+                   linear_model.LinearRegression(optimizer=optim.SGD(learning_rate),
+                                                 intercept_lr=learning_rate)))
+
+    # Trener én uke om gangen
+    for _, row in train.iterrows():
+        model.learn_one(y=row["fill_level"], x={column: row[column] for column in exog})
+
+    # Dynamisk prognose: hver uke spås ut fra modellens egne spådommer for ukene før
+    xs = [{column: row[column] for column in exog} for _, row in future.iterrows()]
+    forecast = model.forecast(horizon=len(future), xs=xs if exog else None)
+
+    # Fyllingsgraden kan ikke være under 0 % eller over 100 %
+    return pd.Series(np.clip(forecast, 0, 100), index=future.index)

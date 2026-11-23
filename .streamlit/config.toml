@@ -1,0 +1,13 @@
+# Tema for hele appen. Fargene brukes også i Plotly-plottene,
+# fordi st.plotly_chart følger temaet til appen.
+[theme]
+base = "light"
+# Hovedfarge: knapper, slidere, valgt menypunkt og faner
+primaryColor = "#1F6FB2"
+# Bakgrunnen på sidene
+backgroundColor = "#FFFFFF"
+# Bakgrunnen i sidebaren og i input-feltene
+secondaryBackgroundColor = "#EEF4FA"
+# Tekstfarge (mørk blågrå i stedet for helt svart, som er mykere å lese)
+textColor = "#1F2A37"
+font = "sans serif"

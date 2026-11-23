@@ -1,73 +1,34 @@
-# Forside (hovedside) for IND320-appen.
-# Streamlit lager automatisk en meny i sidebaren med alle filene i pages/-mappa,
-# slik at brukeren kan navigere mellom sidene herfra.
-
-import pandas as pd
-import requests
+# Startfila til appen. Den setter opp menyen og kjører siden brukeren har valgt.
+# Selve forsiden ligger i pages/home.py.
 import streamlit as st
 
-# Setter tittel i nettleserfanen og bred layout (samme som de andre sidene)
+# Innstillinger for hele appen: tittel i nettleserfanen og bred layout
 st.set_page_config(page_title="IND320 Dashboard", layout="wide")
 
+# Sidene gruppert slik som i skissen. Nøkkelen er overskriften i menyen.
+# Tom overskrift ("") gjør at Home står øverst uten overskrift.
+# icon viser et lite symbol foran sidenavnet (Material Icons, innebygd i Streamlit),
+# så menyen blir lettere å lese og sidene lettere å skille fra hverandre.
+pages = {
+    "": [
+        # default=True gjør at Home vises når appen åpnes
+        st.Page("pages/home.py", title="Home", icon=":material/home:", default=True),
+    ],
+    "Overview": [
+        st.Page("pages/map.py", title="Map", icon=":material/map:"),
+        st.Page("pages/1_Reservoirs.py", title="Reservoirs", icon=":material/water_drop:"),
+        st.Page("pages/4_Power_exchange.py", title="Power exchange", icon=":material/bolt:"),
+    ],
+    "Analysis": [
+        st.Page("pages/2_Reservoir_analysis.py", title="Reservoir analysis", icon=":material/insights:"),
+        st.Page("pages/3_Weather_outliers.py", title="Weather outliers", icon=":material/thermostat:"),
+    ],
+    "Prediction": [
+        st.Page("pages/correlation.py", title="Correlation", icon=":material/compare_arrows:"),
+        st.Page("pages/forecast.py", title="Forecast", icon=":material/trending_up:"),
+    ],
+}
 
-# Henter magasinstatistikken direkte fra NVE sitt API.
-# @st.cache_data gjør at dataene bare hentes én gang. ttl=86400 betyr at de
-# hentes på nytt etter ett døgn, siden NVE publiserer nye tall hver uke.
-@st.cache_data(ttl=86400)
-def load_data():
-    url = "https://biapi.nve.no/magasinstatistikk/api/Magasinstatistikk/HentOffentligData"
-    df = pd.DataFrame(requests.get(url).json())
-    df["dato_Id"] = pd.to_datetime(df["dato_Id"])
-    return df
-
-
-df = load_data()
-
-# Velger strømprisområde NO1 (omrType "EL" OG omrnr 1) og sorterer etter dato
-df_no1 = df[(df["omrType"] == "EL") & (df["omrnr"] == 1)].sort_values("dato_Id")
-
-# Henter den siste målingen, som brukes i nøkkeltallene
-latest = df_no1.iloc[-1]
-
-# ---------- Overskrift og introduksjon ----------
-st.title("Norwegian Hydropower Reservoirs")
-st.write(
-    "Most of Norway's electricity comes from hydropower. Water is stored in "
-    "reservoirs and used to produce electricity when it is needed. This dashboard "
-    "explores how full the reservoirs have been every week since 1995, and how "
-    "much power Norway exchanges with neighbouring countries."
-)
-
-# ---------- Nøkkeltall ----------
-# st.metric viser et tall stort og tydelig. delta viser endringen fra forrige uke.
-st.subheader(f"Latest measurement for NO1 ({latest['dato_Id'].strftime('%d %B %Y')})")
-
-col1, col2, col3 = st.columns(3)   # deler siden i tre kolonner ved siden av hverandre
-col1.metric(
-    "Fill level",
-    f"{latest['fyllingsgrad']:.0%}",
-    f"{latest['endring_fyllingsgrad']:+.1%} from last week",
-)
-col2.metric("Stored energy", f"{latest['fylling_TWh']:.2f} TWh")
-col3.metric("Capacity", f"{latest['kapasitet_TWh']:.2f} TWh")
-
-# ---------- Oversikt over sidene ----------
-st.subheader("What you can explore")
-st.markdown(
-    """
-- **Reservoirs** – tables and plots of reservoir data for the selected area type
-- **Reservoir analysis** – STL decomposition and spectrogram of the fill level
-- **Weather outliers** – outliers (SPC) and anomalies (LOF) in weather data from open-meteo
-- **Power exchange** – how much power flows in and out of Norway on each cross-border connection
-"""
-)
-
-# ---------- Om dataene ----------
-st.subheader("About the data")
-st.write(
-    "The reservoir data is fetched directly from NVE's API (Magasinstatistikk). "
-    "The cross-border power flows come from ENTSO-E and are stored in a MongoDB database."
-)
-
-# Kort hjelpetekst i sidebaren, over menyen Streamlit lager automatisk
-st.sidebar.info("Use the menu above to navigate between the pages.")
+# Lager menyen i sidebaren og kjører siden som er valgt
+page = st.navigation(pages)
+page.run()
