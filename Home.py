@@ -25,6 +25,7 @@ pages = {
     ],
     "Prediction": [
         st.Page("pages/correlation.py", title="Correlation", icon=":material/compare_arrows:"),
+        st.Page("pages/forecast.py", title="Forecast", icon=":material/trending_up:"),
     ],
 }
 

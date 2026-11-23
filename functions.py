@@ -17,6 +17,7 @@ from sklearn.preprocessing import StandardScaler
 from statsmodels.tsa.seasonal import STL
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
+from river import time_series, preprocessing, linear_model, optim
 
 # Områdenumrene som har magasindata for hver områdetype.
 AREAS = {"EL": [1, 2, 3, 4, 5], "NO": [0], "VASS": [1, 2, 3]}
@@ -163,7 +164,8 @@ def weekly_weather(area, start_date, end_date, n_points=5):
 
     # Fjerner tidssonen, så datoene kan kobles med datoene i magasinstatistikken
     weekly.index = weekly.index.tz_localize(None)
-    return weekly
+    # Første og siste uke er ofte ikke hele (f.eks. bare noen dager), så de fjernes
+    return weekly.iloc[1:-1]
 
 # ---------- Uteliggere med SPC ----------
 # Samme utregning som i notebooken (del 3), men plottet er laget med Plotly i stedet for matplotlib.
@@ -373,3 +375,55 @@ def spectrogram_plot(reservoirs, area="EL 3", window_length=104, overlap=78):
     )
     fig.update_yaxes(range=[0, 6])   # viser de laveste frekvensene, der det meste skjer
     return fig
+
+
+# ---------- Valutakurser fra Norges Bank ----------
+# Samme funksjon som i notebooken for del 4, men med caching
+
+@st.cache_data(ttl=86400, show_spinner="Downloading exchange rates from Norges Bank ...")
+def download_exchange_rates(start_date, end_date, currencies=("EUR", "USD")):
+    """Laster ned daglige valutakurser mot norske kroner (NOK per enhet) fra Norges Bank."""
+    codes = "+".join(currencies)
+    url = (f"https://data.norges-bank.no/api/data/EXR/B.{codes}.NOK.SP"
+           f"?format=csv&startPeriod={start_date}&endPeriod={end_date}&locale=en")
+    df = pd.read_csv(url, sep=";")
+    # Én kolonne per valuta, med datoen som indeks
+    rates = df.pivot(index="TIME_PERIOD", columns="BASE_CUR", values="OBS_VALUE")
+    rates.index = pd.to_datetime(rates.index)
+    rates.index.name = "date"
+    rates.columns.name = None
+    return rates
+
+
+# ---------- Prognose med River ----------
+# Samme modell som i notebooken for del 4. Standardverdiene er den beste innstillingen fra testene der.
+
+def forecast_fill_level(train, future, exog=None, p=2, d=1, q=0, sp=1, sd=0, sq=0, learning_rate=0.001):
+    """Spår fyllingsgraden med SNARIMAX fra River.
+
+    train:         ukentlig tabell med "fill_level" og de eksogene variablene i treningsperioden
+    future:        ukentlig tabell med de eksogene variablene for ukene som skal spås
+    exog:          liste med eksogene variabler, f.eks. ["precipitation", "snowfall"]
+    p, d, q:       AR-orden, differensiering og MA-orden
+    sp, sd, sq:    det samme for sesongdelen (sesongen er 52 uker)
+    learning_rate: læringsraten til den lineære regresjonen inne i modellen
+
+    Returnerer prognosen som en serie med ukene som indeks.
+    """
+    exog = exog or []
+    model = time_series.SNARIMAX(
+        p=p, d=d, q=q, m=52, sp=sp, sd=sd, sq=sq,
+        regressor=(preprocessing.StandardScaler() |
+                   linear_model.LinearRegression(optimizer=optim.SGD(learning_rate),
+                                                 intercept_lr=learning_rate)))
+
+    # Trener én uke om gangen
+    for _, row in train.iterrows():
+        model.learn_one(y=row["fill_level"], x={column: row[column] for column in exog})
+
+    # Dynamisk prognose: hver uke spås ut fra modellens egne spådommer for ukene før
+    xs = [{column: row[column] for column in exog} for _, row in future.iterrows()]
+    forecast = model.forecast(horizon=len(future), xs=xs if exog else None)
+
+    # Fyllingsgraden kan ikke være under 0 % eller over 100 %
+    return pd.Series(np.clip(forecast, 0, 100), index=future.index)
