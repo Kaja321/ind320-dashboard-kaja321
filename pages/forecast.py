@@ -23,15 +23,22 @@ fill = (reservoirs[reservoirs["area"] == area]
 # Samme uker som i kartet: fra 2015 og fram til en uke siden (værdataene kommer med noen dagers forsinkelse)
 last_allowed = pd.Timestamp.today().normalize() - pd.Timedelta(days=7)
 dates = fill.index[(fill.index >= "2015-01-01") & (fill.index <= last_allowed)].tolist()
-# Uka som er valgt i kartet brukes som siste uke i treningsdataene, og endringer her vises også i kartet
-default = st.session_state.get("map_date", dates[-1])
-if default not in dates:
-    default = dates[-1]
+
+
+# Uka som er valgt i kartet brukes som siste uke i treningsdataene, og endringer her vises også i kartet.
+# Slideren har sin egen nøkkel, og save_week kopierer valget til map_date (som på kartsiden).
+def save_week():
+    st.session_state["map_date"] = st.session_state["forecast_week"]
+
+if st.session_state.get("map_date") not in dates:
+    st.session_state["map_date"] = dates[-1]
+st.session_state["forecast_week"] = st.session_state["map_date"]
 
 col1, col2, col3 = st.columns(3)
 train_end = col1.select_slider("Last week of training data (synced with the map):", options=dates,
-                               value=default, format_func=lambda d: d.strftime("%d %b %Y"))
-st.session_state["map_date"] = train_end
+                               key="forecast_week", on_change=save_week,
+                               format_func=lambda d: d.strftime("%d %b %Y"))
+
 years = col2.slider("Years of training data", 2, 4, 4,
                     help="At most 4 years, because of the download limit at open-meteo")
 horizon = col3.slider("Forecast horizon (weeks)", 4, 52, 26)

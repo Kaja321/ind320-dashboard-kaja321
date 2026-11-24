@@ -56,13 +56,20 @@ all_dates = pd.Series(reservoirs["dato_Id"].unique()).sort_values()
 last_allowed = pd.Timestamp.today() - pd.Timedelta(days=7)
 dates = all_dates[(all_dates >= "2015-01-01") & (all_dates <= last_allowed)].tolist()
 
-# Valgt uke huskes i session_state, så den kan brukes på andre sider (f.eks. prognosen)
-default = st.session_state.get("map_date", dates[-1])
-if default not in dates:
-    default = dates[-1]
-date = col2.select_slider("Select week (ending on):", options=dates, value=default,
-                          format_func=lambda d: d.strftime("%d %b %Y"))
-st.session_state["map_date"] = date
+# Valgt uke huskes i session_state["map_date"], så den kan brukes på andre sider (f.eks. prognosen).
+# Slideren har sin egen nøkkel ("map_week"). Funksjonen under kopierer valget over i map_date
+# hver gang slideren endres. Med key i stedet for value hopper ikke slideren tilbake.
+def save_week():
+    st.session_state["map_date"] = st.session_state["map_week"]
+
+# Første gang (eller hvis uka ikke finnes i lista) brukes den nyeste uka
+if st.session_state.get("map_date") not in dates:
+    st.session_state["map_date"] = dates[-1]
+# Slideren starter på den lagrede uka, også når man kommer fra prognosesiden
+st.session_state["map_week"] = st.session_state["map_date"]
+
+date = col2.select_slider("Select week (ending on):", options=dates, key="map_week",
+                          on_change=save_week, format_func=lambda d: d.strftime("%d %b %Y"))
 
 # ---------- Data til kartet ----------
 # Vassdragsområdene (VASS) eller prisområdene (EL). Værdata vises for prisområdene.
@@ -136,7 +143,9 @@ fig.update_layout(
     map=dict(style="carto-positron", center={"lat": 65, "lon": 15}, zoom=3.4),
     height=650,
     margin=dict(l=0, r=0, t=0, b=0),
+    uirevision="map",   # beholder zoom og plassering når siden kjøres på nytt
 )
+
 # on_select="rerun" kjører siden på nytt når man klikker, og klikket lagres i st.session_state["map"]
 st.plotly_chart(fig, key="map", on_select="rerun", selection_mode="points", width="stretch")
 
