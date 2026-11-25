@@ -12,16 +12,16 @@ st.title("Power Exchange with Neighbouring Countries")
 
 # Kobler til MongoDB med adressen fra secrets.toml (samme som i lærerens eksempel).
 # st.cache_resource gjør at koblingen bare lages én gang.
-@st.cache_resource
-def init_connection():
-    return pymongo.MongoClient(st.secrets["mongo"]["uri"])
+@st.cache_resource                                                                                                               
+def init_connection():                                                                                                         
+    return pymongo.MongoClient(st.secrets["mongo"]["uri"])                                                                       
 
 client = init_connection()
 
 # Henter alle dokumentene fra samlingen "flows" og gjør dem om til en tabell.
 # st.cache_data gjør at dataene bare lastes ned én gang.
-@st.cache_data
-def get_data():
+@st.cache_data                                                                                                                   
+def get_data():                                                                                                                  
     collection = client["ind320"]["flows"]
     items = list(collection.find({}, {"_id": 0}))   # {"_id": 0} tar bort MongoDB sin id-kolonne
     df = pd.DataFrame(items)

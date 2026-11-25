@@ -69,8 +69,8 @@ def area_selector():
 
 # ---------- Henting av data ----------
 
-@st.cache_data(ttl=86400)
-def load_reservoirs():
+@st.cache_data(ttl=86400)                                                                                                         
+def load_reservoirs():                                                                                                            
     """Henter magasinstatistikken fra NVE sitt API (samme som i notebooken)."""
     url = "https://biapi.nve.no/magasinstatistikk/api/Magasinstatistikk/HentOffentligData"
     reservoirs = pd.DataFrame(requests.get(url).json())
@@ -78,10 +78,10 @@ def load_reservoirs():
     reservoirs["area"] = reservoirs["omrType"] + " " + reservoirs["omrnr"].astype(str)
     return reservoirs
 
-# Funksjonen download_weather leser denne fila og plukker ut punktene for området som er valgt i sidebaren.
+# Funksjonen download_weather leser data/locations.csv og plukker ut punktene for området som er valgt i sidebaren.
 # Med caching lastes hvert område og hver periode bare ned én gang
-@st.cache_data(show_spinner="Downloading weather data from open-meteo ...")
-def download_weather(area, start_date, end_date, n_points=20):
+@st.cache_data(show_spinner="Downloading weather data from open-meteo ...")                                                        
+def download_weather(area, start_date, end_date, n_points=20):                                                                     
     """Laster ned værdata (ERA5, timesverdier) for et område og en periode.
 
     area:       områdenavn, f.eks. "EL 3"
@@ -105,7 +105,7 @@ def download_weather(area, start_date, end_date, n_points=20):
 
     # Open-meteo-klienten prøver på nytt hvis en forespørsel feiler.
     openmeteo = openmeteo_requests.Client(
-        session=retry(requests.Session(), retries=5, backoff_factor=0.2))
+        session=retry(requests.Session(), retries=5, backoff_factor=0.2))                                                        
     params = {
         "latitude": points["latitude"].tolist(),
         "longitude": points["longitude"].tolist(),
@@ -139,7 +139,7 @@ def download_weather(area, start_date, end_date, n_points=20):
 SUM_VARIABLES = ["precipitation", "rain", "snowfall"]
 
 
-def weekly_weather(area, start_date, end_date, n_points=5):
+def weekly_weather(area, start_date, end_date, n_points=5):                                                                     
     """Værdata per uke (mandag til søndag), så de passer med magasinstatistikken.
 
     area:       områdenavn, f.eks. "EL 3"
@@ -381,7 +381,7 @@ def spectrogram_plot(reservoirs, area="EL 3", window_length=104, overlap=78):
 # Samme funksjon som i notebooken for del 4, men med caching
 
 @st.cache_data(ttl=86400, show_spinner="Downloading exchange rates from Norges Bank ...")
-def download_exchange_rates(start_date, end_date, currencies=("EUR", "USD")):
+def download_exchange_rates(start_date, end_date, currencies=("EUR", "USD")):                                                    
     """Laster ned daglige valutakurser mot norske kroner (NOK per enhet) fra Norges Bank."""
     codes = "+".join(currencies)
     url = (f"https://data.norges-bank.no/api/data/EXR/B.{codes}.NOK.SP"

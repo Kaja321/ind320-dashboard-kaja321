@@ -99,11 +99,11 @@ for column in exog:
     future[column] = future[column].fillna(train[column].mean())
 
 if missing_weeks > 0:
-    st.info(f"Weather data is not available for {missing_weeks} of the forecast weeks. "
+    st.info(f"Weather data is not available for {missing_weeks} of the forecast weeks. "                                        
             "For these weeks, the normal weather (average for the same week in the training years) is used.")
 
 # ---------- Prognose ----------
-with st.spinner("Training the model and forecasting ..."):
+with st.spinner("Training the model and forecasting ..."):                                                                      
     forecast = forecast_fill_level(train, future, exog=exog, p=int(p), d=int(d), q=int(q),
                                    sp=int(sp), sd=int(sd), sq=int(sq), learning_rate=learning_rate)
 

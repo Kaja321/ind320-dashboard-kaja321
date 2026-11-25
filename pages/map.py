@@ -13,7 +13,7 @@ st.title("Map of Areas")
 
 # Leser en GeoJSON-fil. st.cache_data gjør at fila bare leses én gang.
 @st.cache_data
-def load_geojson(path):
+def load_geojson(path):                                                                                                      
     with open(path) as f:
         return json.load(f)
 
@@ -22,7 +22,7 @@ def load_geojson(path):
 # Kartet har key="map", så Streamlit lagrer det siste klikket i st.session_state["map"].
 # Klikket leses her, før områdevalget i sidebaren lages, så sidebaren viser området man klikket på.
 # last_click sørger for at et gammelt klikk ikke overstyrer et senere valg i sidebaren.
-event = st.session_state.get("map")
+event = st.session_state.get("map")                                                                                          
 if event and event["selection"]["points"]:
     point = event["selection"]["points"][0]
     # curve_number 0 er områdene. (Omrisset av valgt område er et eget lag, som ikke skal telle.)
@@ -60,7 +60,7 @@ dates = all_dates[(all_dates >= "2015-01-01") & (all_dates <= last_allowed)].tol
 # Slideren har sin egen nøkkel ("map_week"). Funksjonen under kopierer valget over i map_date
 # hver gang slideren endres. Med key i stedet for value hopper ikke slideren tilbake.
 def save_week():
-    st.session_state["map_date"] = st.session_state["map_week"]
+    st.session_state["map_date"] = st.session_state["map_week"]                                                                 
 
 # Første gang (eller hvis uka ikke finnes i lista) brukes den nyeste uka
 if st.session_state.get("map_date") not in dates:
@@ -147,7 +147,7 @@ fig.update_layout(
 )
 
 # on_select="rerun" kjører siden på nytt når man klikker, og klikket lagres i st.session_state["map"]
-st.plotly_chart(fig, key="map", on_select="rerun", selection_mode="points", width="stretch")
+st.plotly_chart(fig, key="map", on_select="rerun", selection_mode="points", width="stretch")                                     
 
 # Forklaring under kartet: hvordan man velger område, og hva fargene viser
 st.caption(f"Selected area: {area}. Click on an area to select it, or choose NO in the sidebar "
